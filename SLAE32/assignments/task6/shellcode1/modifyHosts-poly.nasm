@@ -50,4 +50,4 @@ _write:
 _load_data:
     call _write
     google db "127.1.1.1 google.com"
-    len: equ $-google
+    len: equ $-google ; Mod
